@@ -1,0 +1,21 @@
+{
+  "name": "youtube-downloader",
+  "version": "1.0.0",
+  "description": "Fetch songs from a Spotify playlist and search for matching YouTube videos.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "googleapis": "^129.0.0",
+    "node-id3": "^0.2.9",
+    "spotifydl-core": "^0.2.0",
+    "ytdl-core-enhanced": "^2.1.0"
+  },
+  "keywords": [
+    "youtube"
+  ],
+  "author": "",
+  "license": "MIT"
+}
