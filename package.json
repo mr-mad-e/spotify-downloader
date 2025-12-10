@@ -1,7 +1,7 @@
 {
-  "name": "youtube-downloader",
+  "name": "spotify-downloader",
   "version": "1.0.0",
-  "description": "Fetch songs from a Spotify playlist and search for matching YouTube videos.",
+  "description": "Fetch songs from a Spotify playlist and download mp3 songs from YouTube.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -14,6 +14,7 @@
     "ytdl-core-enhanced": "^2.1.0"
   },
   "keywords": [
+    "spotify",
     "youtube"
   ],
   "author": "",
