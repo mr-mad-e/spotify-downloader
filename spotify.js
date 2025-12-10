@@ -1,19 +1,36 @@
-const myHeaders = new Headers();
-myHeaders.append("accept", "application/json");
-myHeaders.append("accept-language", "en");
-myHeaders.append("app-platform", "WebPlayer");
-myHeaders.append(
-  "authorization",
-  "Bearer BQAL16cuQrXqEsAvGRcHOIHiiFCul8hKhVd_hyZyjhdGaDDKLEb6tt_PSmtLrhkJ1_gmQ49xHfuG6g-m7kKX2Rl-oYNzgKYIeGoDtU8COd0PJwomtOFjhljd9nsVir-Z-Mm57bQXwjFa8u7cdnfhJEz6aBIVyG0X3aRwZXqQpx_cXoVK-y61WHpHF1R5Qv7SscDOGy-_EOCBuMcTRigl86zmmFjcMh0kPtntZD-9vAqzQdrm9l1FjzByl4mKgYGHktTeXFH4_b9JEEvcy2CxdjsW8eveKELOnWJGIfw4dvHGArlZlG4ibHNbuUoscSqxIP_1CZUTI80GiK_hFT9p2yR4pNhocaYBT1mOoMvQtWyUubw8W8UOxnFAg-hnBGpUibJfJZFpcC27DxdV"
-);
-myHeaders.append("content-type", "application/json;charset=UTF-8");
-myHeaders.append("origin", "https://open.spotify.com");
-myHeaders.append("priority", "u=1, i");
-myHeaders.append("referer", "https://open.spotify.com/");
-myHeaders.append("spotify-app-version", "1.2.79.336.g2f666f74");
+/**
+ * Spotify API module
+ * Handles fetching playlists from Spotify
+ */
 
-module.exports = async (playlistId) => {
-  const raw = JSON.stringify({
+const SPOTIFY_API_URL = "https://api-partner.spotify.com/pathfinder/v2/query";
+const SPOTIFY_AUTH_TOKEN = process.env.SPOTIFY_AUTH_TOKEN;
+
+/**
+ * Creates headers for Spotify API requests
+ * @returns {Headers} The headers object
+ */
+function createSpotifyHeaders() {
+  const headers = new Headers();
+  headers.append("accept", "application/json");
+  headers.append("accept-language", "en");
+  headers.append("app-platform", "WebPlayer");
+  headers.append("authorization", `Bearer ${SPOTIFY_AUTH_TOKEN}`);
+  headers.append("content-type", "application/json;charset=UTF-8");
+  headers.append("origin", "https://open.spotify.com");
+  headers.append("priority", "u=1, i");
+  headers.append("referer", "https://open.spotify.com/");
+  headers.append("spotify-app-version", "1.2.79.336.g2f666f74");
+  return headers;
+}
+
+/**
+ * Fetches a Spotify playlist
+ * @param {string} playlistId - The Spotify playlist ID
+ * @returns {Promise<object|null>} The playlist data or null on error
+ */
+async function fetchPlaylist(playlistId) {
+  const body = JSON.stringify({
     variables: {
       uri: `spotify:playlist:${playlistId}`,
       offset: 0,
@@ -32,15 +49,21 @@ module.exports = async (playlistId) => {
 
   const requestOptions = {
     method: "POST",
-    headers: myHeaders,
-    body: raw,
+    headers: createSpotifyHeaders(),
+    body,
     redirect: "follow",
   };
 
-  return fetch(
-    "https://api-partner.spotify.com/pathfinder/v2/query",
-    requestOptions
-  )
-    .then((response) => response.json())
-    .catch((error) => console.error(error));
-};
+  try {
+    const response = await fetch(SPOTIFY_API_URL, requestOptions);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("❌ Error fetching Spotify playlist:", error.message);
+    return null;
+  }
+}
+
+module.exports = fetchPlaylist;

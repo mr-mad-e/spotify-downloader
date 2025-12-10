@@ -1,89 +1,103 @@
 require("dotenv").config();
 const fs = require("fs");
-const ytdl = require("ytdl-core-enhanced");
-const NodeID3 = require("node-id3");
-const https = require("https");
+const path = require("path");
 const youtube = require("./youtube");
 const spotify = require("./spotify");
+const { downloadAndProcessSong } = require("./downloader");
+const { PLAYLIST_IDS, DIRECTORIES } = require("./config");
 
-const playlistIds = [
-  "37i9dQZF1DWVDvBpGQbzXj", // 10's
-  "37i9dQZF1DWZNJXX2UeBij", // 00's
-  "37i9dQZF1DXa2huSXaKVkW", // 90's
-  "37i9dQZF1DX5rOEFf3Iycd", // 80's
-  "37i9dQZF1DX9kVlnA5Si6s", // 70's
-  "37i9dQZF1DXa1eCiO3E6Rr", // 60's
-  "37i9dQZF1DWVClvVUI87z8", // 50's
-];
+/**
+ * Ensures required directories exist
+ */
+function ensureDirectories() {
+  [DIRECTORIES.playlists, DIRECTORIES.temp].forEach((dir) => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  });
+}
 
-// ------------ MAIN ------------
-(async () => {
-  for (const playlistId of playlistIds) {
+function ensureSubDirectories(playlistName) {
+  const playlistPath = path.join(DIRECTORIES.playlists, playlistName);
+  const tempPath = path.join(DIRECTORIES.temp, playlistName);
+
+  if (!fs.existsSync(playlistPath)) {
+    fs.mkdirSync(playlistPath, { recursive: true });
+  }
+
+  if (!fs.existsSync(tempPath)) {
+    fs.mkdirSync(tempPath, { recursive: true });
+  }
+}
+
+/**
+ * Extracts metadata from Spotify track item
+ */
+function extractTrackMetadata(spotifyItem) {
+  const data = spotifyItem.itemV3.data;
+  return {
+    title: data.identityTrait.name.replaceAll("/", "-"),
+    album: data.identityTrait.contentHierarchyParent.identityTrait.name,
+    artist: data.identityTrait.contributors.items
+      .map((item) => item.name)
+      .join(" / "),
+    thumbnail:
+      data.visualIdentityTrait.squareCoverImage.image.data.sources[0].url,
+  };
+}
+
+/**
+ * Processes all songs in a playlist
+ */
+async function processPlaylist(playlistId) {
+  try {
     const playlist = await spotify(playlistId);
-    if (!playlist)
-      return console.log(`Failed to fetch playlist: ${playlistId}`);
-    const playlistName = playlist.data.playlistV2.name;
-
-    if (!fs.existsSync(`playlists/${playlistName}`)) {
-      fs.mkdirSync(`playlists/${playlistName}`, { recursive: true });
+    if (!playlist) {
+      console.error(`❌ Failed to fetch playlist: ${playlistId}`);
+      return;
     }
 
-    for (const item of playlist.data.playlistV2.content.items) {
-      const title = item.itemV3.data.identityTrait.name.replaceAll("/", "-");
-      const album =
-        item.itemV3.data.identityTrait.contentHierarchyParent.identityTrait
-          .name;
+    const playlistName = playlist.data.playlistV2.name;
+    const playlistPath = path.join(DIRECTORIES.playlists, playlistName);
+    ensureSubDirectories(playlistName);
 
-      const filePath = `playlists/${playlistName}/${title}.mp3`;
+    console.log(`\n📃 Processing playlist: ${playlistName}`);
+
+    const items = playlist.data.playlistV2.content.items;
+    for (const item of items) {
+      const metadata = extractTrackMetadata(item);
+      const filePath = path.join(playlistPath, `${metadata.title}.mp3`);
 
       // Skip if file already exists
       if (fs.existsSync(filePath)) {
-        console.log(`${title} already exists, skipping...`);
+        console.log(`↩️  ${metadata.title} already exists, skipping...`);
         continue;
       }
 
-      const videoId = await youtube(`${title} | ${album}`);
-      if (!videoId) {
-        console.log(`Video not found for ${title}, skipping...`);
-        continue;
-      }
-
-      const artist = item.itemV3.data.identityTrait.contributors.items
-        .map((item) => item.name)
-        .join(" / ");
-      const image =
-        item.itemV3.data.visualIdentityTrait.squareCoverImage.image.data
-          .sources[0].url;
-
-      const writer = fs.createWriteStream(filePath);
-
-      ytdl(`https://www.youtube.com/watch?v=${videoId}`, {
-        filter: "audioonly",
-        quality: "highestaudio",
-      }).pipe(writer);
-
-      writer.on("finish", () => {
-        // Download thumbnail
-        https.get(image, (response) => {
-          const thumbnailWriter = fs.createWriteStream(`temp/${title}.jpg`);
-          response.pipe(thumbnailWriter);
-
-          thumbnailWriter.on("finish", () => {
-            // Add tags to MP3
-            const tags = {
-              title: title,
-              album: album,
-              artist: artist,
-              APIC: thumbnailWriter.path,
-            };
-
-            NodeID3.update(tags, filePath, (err) => {
-              if (err) console.error("Error adding tags:", err);
-              // else console.log("Thumbnail and metadata added!");
-            });
-          });
-        });
-      });
+      await downloadAndProcessSong(metadata, filePath, playlistName);
     }
+  } catch (error) {
+    console.error(`Error processing playlist ${playlistId}:`, error);
   }
-})();
+}
+
+/**
+ * Main function
+ */
+async function main() {
+  try {
+    console.log("🎵 Starting Spotify Playlist Downloader...");
+    ensureDirectories();
+
+    for (const playlistId of PLAYLIST_IDS) {
+      await processPlaylist(playlistId);
+    }
+
+    console.log("\n✅ All playlists processed!");
+  } catch (error) {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  }
+}
+
+main();
